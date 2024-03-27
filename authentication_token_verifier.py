@@ -1,3 +1,7 @@
+import os
+import hashlib
+
+
 class AuthenticationTokenVerifier:
 
     def __init__(self, file_name: str):
@@ -7,13 +11,17 @@ class AuthenticationTokenVerifier:
         try:
             with open(self.file_name) as data:
                 data = data.readline().split("=")[1]
-            return None, data
+            return data, None
         except FileNotFoundError as error:
-            return error, None
+            return None, error
 
-    def create_file(self):
-        try:
-            file = open(self.file_name, 'w+')
-            return None, "File created"
-        except FileNotFoundError as error:
-            return error, None
+    def create_file(self, security_string: str = "."):
+        if not os.path.exists(f"./{self.file_name}"):
+            token = hashlib.sha256(security_string.encode("utf-8")).hexdigest()
+            try:
+                file = open(self.file_name, 'w+')
+                file.write(f"token={token}")
+                return token
+            except FileNotFoundError as error:
+                return "error"
+        return "exists"

@@ -5,39 +5,45 @@ from flask import Flask, request, make_response, jsonify
 app = Flask(__name__)
 app.config['SECRET_TOKEN'] = "mysecret"
 
-_data = AuthenticationTokenVerifier("token.txt")
-current_token = _data.read_data()[1]
+authentication_token_verifier = AuthenticationTokenVerifier("token.txt")
+
 
 def token_required(f):
     @wraps(f)
     def decorator(*args, **kwargs):
-        _token = request.headers.get('Authorization').split()[1]
-        print(_token)
+        token, error = authentication_token_verifier.read_data()
+        if error:
+            return make_response(jsonify({"message": "Something went wrong."}), 501)
 
-        if not _token and _token is None:  # throw error if no token provided
+        authorization = request.headers.get('Authorization')
+        if authorization is None:  # return error if no token provided
             return make_response(jsonify({"message": "A valid token is missing!"}), 401)
 
-        if _token != f"{current_token}":
+        bearer_token = authorization.split()[1]
+
+        if bearer_token != token:
             return make_response(jsonify({"message": "Invalid token!"}), 401)
 
-        token = _token
-
         # Return the user information attached to the token
-        return f(*args, **kwargs)
+        return f(bearer_token, *args, **kwargs)
 
     return decorator
 
 
-
 @app.route("/api/v1/protected")
 @token_required
-def protected():
-    return make_response({"message": "private place"})
+def protected(token):
+    return make_response({"message": "private place", "data": token})
 
 
-@app.route("/api/v1/unprotected")
+@app.route("/api/v1/unprotected", methods=['POST'])
 def unprotected():
-    return make_response({"message": "public place"})
+    token = authentication_token_verifier.create_file()
+    if token == "exists":
+        return make_response(jsonify({"message": "Already have a token!"}), 405)
+    elif token == "error":
+        return make_response(jsonify({"message": "Something went wrong!"}), 405)
+    return make_response({"message": f"Your token is ready!", "token" : token})
 
 
 if __name__ == "__main__":
